@@ -7,8 +7,8 @@
 #include <RTClib.h>
 #include "esp_sleep.h"
 
-const char* ssid = "linkem2";
-const char* password = "";
+const char* ssid = "YOUR WIFI SSID";
+const char* password = "YOUR WIFI PASSWORD";
 const long  gmtOffset_sec = 3600;
 const int   daylightOffset_sec = 3600;
 const char* ntpServer = "pool.ntp.org";
@@ -23,15 +23,15 @@ typedef struct {
     int m;
     int duration; // if 0 just change relay state, else turn on and off after duration ms
 } time_tuple;    //  creates a struct type time_tuple
+// define a series of daily events: {{relay_number, hour, minutes, pulse duration in ms}, ...}
 time_tuple timer_time[events] = {{0,6,30,1500}, {0,7,30,1500}, {0,8,30,1500}, {0,9,30,1500}, {0,10,30,1500}, {0,16,35,1500}};
-//, {1,6,32,500}, {1,6,52,500}, {2,6,52,500}, {2,7,22,500}, {3,15,25,1000}, {2,15,25,1000}, {1,15,35,1000}, {1,15,56,1000}};
 
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
-char relay_name[max_relays][10] = {"CBSM", "FRONTE", "PRATO", "FRUTTETO", "", "", "", ""};
+char relay_name[max_relays][10] = {"CONDOTTA", "FRONTE", "PRATO", "FRUTTETO", "", "", "", ""}; // define some convenient names for each relay
 int relay_pin[max_relays] = {27, 26, 25, 14};
 int relay_status[max_relays] = {0, 0, 0, 0, 0, 0, 0, 0};
 
-RTC_DS3231 rtc;                     // create rtc for the DS3231 RTC module, address is fixed at 0x68
+RTC_DS3231 rtc; // create rtc for the DS3231 RTC module, address is fixed at 0x68
 
 void print_time_ntp()
 {
@@ -111,7 +111,7 @@ int next_timer() {
   uint8_t s = now.second();
 
   volatile int delta_min;
-  delta_min = 1800;
+  delta_min = 1800; // maximum sleep time, to avoid excessive clock errors (and your events could be missed!)
   for (int i=0; i<events; i++) {
     int delta;
     delta = 60*60*((timer_time[i].h) - h);
@@ -124,7 +124,7 @@ int next_timer() {
   }
   Serial.print("Time in seconds to next timer: ");
   Serial.println(int(delta_min));
-  return delta_min; // return time to next timer in seconds
+  return delta_min; // return time to next event in seconds
 }
 
 void setup() {
@@ -132,7 +132,7 @@ void setup() {
   Serial.begin(115200);
   delay_marco(1000); // wait for console opening
 
-  Serial.println(bootCount);
+  Serial.println(bootCount); // how many times did we go to deep sleep
   
   if (! rtc.begin()) {
     Serial.println("Couldn't find RTC");
@@ -140,7 +140,7 @@ void setup() {
   }
 
   if (bootCount == 0){
-    //connect to WiFi
+    // connect to WiFi only the first time it boots, get time from NTP and sync the RTC, never use wifi again
     Serial.printf("Connecting to %s ", ssid);
     WiFi.begin(ssid, password);
   
@@ -169,9 +169,8 @@ void setup() {
       } else {
         Serial.println("Failed to obtain time");
       }
-      //Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
     
-      //disconnect WiFi as it's no longer needed
+      // disconnect WiFi
       WiFi.disconnect(true);
       WiFi.mode(WIFI_OFF);
     } else {
@@ -181,10 +180,10 @@ void setup() {
     Wire.begin(21, 22);
     Wire.setClock(400000L);   // set I2C clock to 400kHz
   }
+  // set digital pins to HIGH state
   for (int relay_n=0; relay_n < 8; relay_n++) {
     pinMode(relay_pin[relay_n], OUTPUT);
     digitalWrite(relay_pin[relay_n], HIGH);
-    //Serial.println(relay_pin[relay_n]);
   }
 
   bootCount++;
@@ -222,7 +221,7 @@ void loop() {
     if (sleep_delay > 60) {
       uint64_t sleeptime = (sleep_delay-30) * 1000000;
       esp_sleep_enable_timer_wakeup(sleeptime);
-      //rtc_gpio_isolate(GPIO_NUM_12);
+      delay_marco(100);
       
       Serial.println("Entering deep sleep...");
       esp_deep_sleep_start();
